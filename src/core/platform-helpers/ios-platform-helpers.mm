@@ -49,7 +49,7 @@ using namespace std;
 
 LINPHONE_BEGIN_NAMESPACE
 
-typedef enum { // TODO PAUL : a mettre dans la classe?
+typedef enum {
 	noCoreStarted,
 	mainCoreStarted,
 	executorCoreStarted
@@ -915,9 +915,7 @@ void IosPlatformHelpers::stopSharedCores() {
         usleep(100000);
     }
 	if (isSharedCoreStarted()) {
-		// TODO PAUL : set a false pour pouvoir tester
 		setSharedCoreState(SharedCoreState::noCoreStarted);
-		// throw "Unable to stop shared Core";
 	}
     ms_message("[SHARED] stopped");
 }

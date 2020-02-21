@@ -153,7 +153,7 @@ LINPHONE_PUBLIC LinphoneCore *linphone_factory_create_core_3 (
  * @param[in] system_context A pointer to a system object required by the core to operate. Currently it is required to
  * pass an android Context on android, pass NULL on other platforms.
  * @param[in] app_group Name of iOS App Group that lead to the file system that is shared between an app and its app extensions.
- * @param[in] main_core Indicate if we want to create a "Main Core" or an "Executor Core". // TODO PAUL: ok?
+ * @param[in] main_core Indicate if we want to create a "Main Core" or an "Executor Core".
  * @see linphone_factory_create_shared_core_with_config
  */
 LINPHONE_PUBLIC LinphoneCore *linphone_factory_create_shared_core (
@@ -246,7 +246,7 @@ LINPHONE_PUBLIC LinphoneCore *linphone_factory_create_core_with_config_3 (
  * @param[in] system_context A pointer to a system object required by the core to operate. Currently it is required to
  * pass an android Context on android, pass NULL on other platforms.
  * @param[in] app_group Name of iOS App Group that lead to the file system that is shared between an app and its app extensions.
- * @param[in] main_core Indicate if we want to create a "Main Core" or an "Executor Core". // TODO PAUL: ok?
+ * @param[in] main_core Indicate if we want to create a "Main Core" or an "Executor Core".
  * @see linphone_factory_create_shared_core
  */
 LinphoneCore *linphone_factory_create_shared_core_with_config (
