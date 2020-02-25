@@ -665,8 +665,8 @@ std::shared_ptr<ChatMessage> Core::getPushNotificationMessage (const std::string
 	return msg;
 }
 
-std::shared_ptr<ChatRoom> Core::getPushNotificationChatRoomInvite () const {
-	std::shared_ptr<ChatRoom> chatRoom = static_cast<PlatformHelpers *>(getCCore()->platform_helper)->getPushNotificationChatRoomInvite();
+std::shared_ptr<ChatRoom> Core::getPushNotificationChatRoomInvite (const std::string &chatRoomAddr) const {
+	std::shared_ptr<ChatRoom> chatRoom = static_cast<PlatformHelpers *>(getCCore()->platform_helper)->getPushNotificationChatRoomInvite(chatRoomAddr);
 	return chatRoom;
 }
 

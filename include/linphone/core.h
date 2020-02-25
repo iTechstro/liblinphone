@@ -6166,10 +6166,11 @@ LINPHONE_PUBLIC LinphoneChatMessage * linphone_core_get_push_notification_messag
 /**
  * Get the chat room we have been added into for the push notification
  * @param[in] lc The #LinphoneCore
+ * @param[in] chat_room_addr The sip address of the chat room
  * @return The #LinphoneChatRoom object.
  * @ingroup misc
 **/
-LINPHONE_PUBLIC LinphoneChatRoom * linphone_core_get_push_notification_chat_room_invite(LinphoneCore *lc);
+LINPHONE_PUBLIC LinphoneChatRoom * linphone_core_get_push_notification_chat_room_invite(LinphoneCore *lc, const char *chat_room_addr);
 
 #ifdef __cplusplus
 }

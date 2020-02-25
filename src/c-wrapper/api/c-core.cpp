@@ -147,8 +147,8 @@ LinphoneChatMessage * linphone_core_get_push_notification_message(LinphoneCore *
 	return msg;
 }
 
-LinphoneChatRoom * linphone_core_get_push_notification_chat_room_invite(LinphoneCore *lc) {
-	std::shared_ptr<ChatRoom> cppChatRoom = L_GET_CPP_PTR_FROM_C_OBJECT(lc)->getPushNotificationChatRoomInvite();
+LinphoneChatRoom * linphone_core_get_push_notification_chat_room_invite(LinphoneCore *lc , const char *chat_room_addr) {
+	std::shared_ptr<ChatRoom> cppChatRoom = L_GET_CPP_PTR_FROM_C_OBJECT(lc)->getPushNotificationChatRoomInvite(Utils::cStringToCppString(chat_room_addr));
 	LinphoneChatRoom *chatRoom = L_GET_C_BACK_PTR(cppChatRoom);
 
 	if (chatRoom) {
