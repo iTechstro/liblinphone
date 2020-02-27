@@ -184,7 +184,7 @@ static LinphoneCore *_linphone_factory_create_shared_core (
 	bool_t main_core
 ) {
 	bctbx_init_logger(FALSE);
-	LpConfig *config = lp_config_new_with_factory(config_path, factory_config_path);
+	LpConfig *config = lp_config_new_with_factory(config_path, factory_config_path); // TODO PAUL : use linphone_config_new_for_shared_core???
 	LinphoneCore *lc = _linphone_core_new_shared_with_config(cbs, config, user_data, system_context, automatically_start, app_group, main_core);
 	lp_config_unref(config);
 	bctbx_uninit_logger();

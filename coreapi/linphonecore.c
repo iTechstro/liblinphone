@@ -6355,9 +6355,9 @@ LinphoneXmlRpcSession * linphone_core_create_xml_rpc_session(LinphoneCore *lc, c
  * Called by linphone_core_stop_async() to begin the async stop process and change the state to "Shutdown"
  */
 static void _linphone_core_stop_async_start(LinphoneCore *lc) {
-	if (linphone_core_get_global_state(lc) != LinphoneGlobalOn) {
-		return;
-	}
+	// if (linphone_core_get_global_state(lc) != LinphoneGlobalOn) { // TODO PAUL : it was needed for? but account manager is in state redy when it stops
+	// 	return;
+	// }
 	linphone_task_list_free(&lc->hooks);
 	lc->video_conf.show_local = FALSE;
 
@@ -6384,9 +6384,9 @@ static void _linphone_core_stop_async_start(LinphoneCore *lc) {
  * and change the state to "Off"
  */
 static void _linphone_core_stop_async_end(LinphoneCore *lc) {
-	if (linphone_core_get_global_state(lc) != LinphoneGlobalShutdown) {
-		return;
-	}
+	// if (linphone_core_get_global_state(lc) != LinphoneGlobalShutdown) { // TODO PAUL : it was needed for? but account manager is in state redy when it stops
+	// 	return;
+	// }
 	L_GET_PRIVATE_FROM_C_OBJECT(lc)->stop();
 
 	lc->chat_rooms = bctbx_list_free_with_data(lc->chat_rooms, (bctbx_list_free_func)linphone_chat_room_unref);
@@ -6472,9 +6472,9 @@ static void _linphone_core_stop_async_end(LinphoneCore *lc) {
 }
 
 static void _linphone_core_stop(LinphoneCore *lc) {
-	if (linphone_core_get_global_state(lc) != LinphoneGlobalOn) {
-		return;
-	}
+//	if (linphone_core_get_global_state(lc) != LinphoneGlobalOn) { // TODO PAUL : it was needed for? but account manager is in state redy when it stops
+//		return;
+//	}
 
 	_linphone_core_stop_async_start(lc);
 

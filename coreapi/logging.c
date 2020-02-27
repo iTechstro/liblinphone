@@ -278,37 +278,37 @@ const char *linphone_logging_service_get_domain(LinphoneLoggingService *log_serv
 
 void linphone_logging_service_debug(LinphoneLoggingService *log_service, const char *msg) {
 	if (log_service->domain) {
-		bctbx_logv(log_service->domain, _linphone_log_level_to_bctbx_log_level(LinphoneLogLevelDebug), msg, va_list());
+		bctbx_logv(log_service->domain, _linphone_log_level_to_bctbx_log_level(LinphoneLogLevelDebug), msg, NULL);
 	}
 }
 
 void linphone_logging_service_trace(LinphoneLoggingService *log_service, const char *msg) {
 	if (log_service->domain) {
-		bctbx_logv(log_service->domain, _linphone_log_level_to_bctbx_log_level(LinphoneLogLevelTrace), msg, va_list());
+		bctbx_logv(log_service->domain, _linphone_log_level_to_bctbx_log_level(LinphoneLogLevelTrace), msg, NULL);
 	}
 }
 
 void linphone_logging_service_message(LinphoneLoggingService *log_service, const char *msg) {
 	if (log_service->domain) {
-		bctbx_logv(log_service->domain, _linphone_log_level_to_bctbx_log_level(LinphoneLogLevelMessage), msg, va_list());
+		bctbx_logv(log_service->domain, _linphone_log_level_to_bctbx_log_level(LinphoneLogLevelMessage), msg, NULL);
 	}
 }
 
 void linphone_logging_service_warning(LinphoneLoggingService *log_service, const char *msg) {
 	if (log_service->domain) {
-		bctbx_logv(log_service->domain, _linphone_log_level_to_bctbx_log_level(LinphoneLogLevelWarning), msg, va_list());
+		bctbx_logv(log_service->domain, _linphone_log_level_to_bctbx_log_level(LinphoneLogLevelWarning), msg, NULL);
 	}
 }
 
 void linphone_logging_service_error(LinphoneLoggingService *log_service, const char *msg) {
 	if (log_service->domain) {
-		bctbx_logv(log_service->domain, _linphone_log_level_to_bctbx_log_level(LinphoneLogLevelError), msg, va_list());
+		bctbx_logv(log_service->domain, _linphone_log_level_to_bctbx_log_level(LinphoneLogLevelError), msg, NULL);
 	}
 }
 
 void linphone_logging_service_fatal(LinphoneLoggingService *log_service, const char *msg) {
 	if (log_service->domain) {
-		bctbx_logv(log_service->domain, _linphone_log_level_to_bctbx_log_level(LinphoneLogLevelFatal), msg, va_list());
+		bctbx_logv(log_service->domain, _linphone_log_level_to_bctbx_log_level(LinphoneLogLevelFatal), msg, NULL);
 	}
 }
 
