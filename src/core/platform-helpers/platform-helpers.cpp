@@ -174,6 +174,10 @@ string GenericPlatformHelpers::getDownloadPath () {
 	return "";
 }
 
+bool GenericPlatformHelpers::isCoreShared() {
+	return false;
+}
+
 bool GenericPlatformHelpers::canCoreStart() {
 	return true;
 }
@@ -185,5 +189,7 @@ std::shared_ptr<ChatMessage> GenericPlatformHelpers::getPushNotificationMessage(
 std::shared_ptr<ChatRoom> GenericPlatformHelpers::getPushNotificationChatRoomInvite(const string &chatRoomAddr) {
 	return nullptr;
 }
+
+void GenericPlatformHelpers::resetSharedCoreState() {}
 
 LINPHONE_END_NAMESPACE

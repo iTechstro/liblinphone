@@ -81,9 +81,11 @@ public:
 	virtual void onLinphoneCoreStart (bool monitoringEnabled) = 0;
 	virtual void onLinphoneCoreStop () = 0;
 
+	virtual	bool isCoreShared() = 0;
 	virtual bool canCoreStart() = 0;
 	virtual std::shared_ptr<ChatMessage> getPushNotificationMessage(const std::string &callId) = 0;
 	virtual	std::shared_ptr<ChatRoom> getPushNotificationChatRoomInvite(const std::string &chatRoomAddr) = 0;
+	virtual void resetSharedCoreState() = 0;
 
 protected:
 	inline explicit PlatformHelpers (std::shared_ptr<LinphonePrivate::Core> core) : CoreAccessor(core) {}
@@ -134,9 +136,11 @@ public:
 	void onLinphoneCoreStart (bool monitoringEnabled) override;
 	void onLinphoneCoreStop () override;
 
+	bool isCoreShared() override;
 	bool canCoreStart() override;
 	std::shared_ptr<ChatMessage> getPushNotificationMessage(const std::string &callId) override;
 	std::shared_ptr<ChatRoom> getPushNotificationChatRoomInvite(const std::string &chatRoomAddr) override;
+	void resetSharedCoreState() override;
 
 protected:
 	std::string mCurrentSSID;
