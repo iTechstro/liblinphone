@@ -48,13 +48,6 @@ extern "C" {
  */
 
 /**
- * Create a #LinphoneConferenceParams with default parameters set.
- * @param core #LinphoneCore to use to find out the default parameters. Can be NULL.
- * @return A freshly allocated #LinphoneConferenceParams
- */
-LINPHONE_PUBLIC LinphoneConferenceParams *linphone_conference_params_new(const LinphoneCore *core);
-
-/**
  * Take a reference on a #LinphoneConferencParams.
  * @param[in] params The #LinphoneConferenceParams to ref.
  * @return The freshly refed #LinphoneConferenceParams.
@@ -93,7 +86,22 @@ LINPHONE_PUBLIC void linphone_conference_params_enable_video(LinphoneConferenceP
  * Check whether video will be enable at conference starting
  * @return if true, the video will be enable at conference starting
  */
-LINPHONE_PUBLIC bool_t linphone_conference_params_video_requested(const LinphoneConferenceParams *params);
+LINPHONE_PUBLIC bool_t linphone_conference_params_video_enabled(const LinphoneConferenceParams *params);
+
+/**
+ * Enable local participant to enter the conference.
+ * The local participant is the one driving the local #LinphoneCore. It uses the local sound devices.
+ * The default value is TRUE. Setting to FALSE is mostly helpful when using liblinphone on a server application.
+ * @param params A #LinphoneConferenceParams
+ * @param enable If true, local participant is automatically added to the conference.
+ */
+LINPHONE_PUBLIC void linphone_conference_params_enable_local_participant(LinphoneConferenceParams *params, bool_t enable);
+
+/**
+ * Returns whether local participant has to enter the conference.
+ * @return if true, local participant is by default part of the conference.
+ */
+LINPHONE_PUBLIC bool_t linphone_conference_params_local_participant_enabled(const LinphoneConferenceParams *params);
 
 
 /**
@@ -136,6 +144,29 @@ LINPHONE_PUBLIC bctbx_list_t *linphone_conference_get_participants(const Linphon
 LINPHONE_PUBLIC LinphoneStatus linphone_conference_invite_participants(LinphoneConference *conf, const bctbx_list_t *addresses, const LinphoneCallParams *params);
 
 /**
+ * Join an existing call to the conference.
+ * @param obj The conference.
+ * @param call a #LinphoneCall that has to be added to the conference.
+ */
+LINPHONE_PUBLIC int linphone_conference_add_participant(LinphoneConference *obj, LinphoneCall *call);
+
+
+/**
+ * Update parameters of the conference.
+ * This is typically used enable or disable the video stream in the conference.
+ * @param obj the conference
+ * @param params the new parameters to apply.
+ */
+LINPHONE_PUBLIC int linphone_conference_update_params(LinphoneConference *obj, const LinphoneConferenceParams *params);
+
+/**
+ * Get current parameters of the conference.
+ * @param obj the conference
+ * @return a #LinphoneConferenceParams .
+ */
+LINPHONE_PUBLIC const LinphoneConferenceParams * linphone_conference_get_current_params(const LinphoneConference *obj);
+
+/**
   * Get the conference id as string
   */
 LINPHONE_PUBLIC const char *linphone_conference_get_ID(const LinphoneConference *obj);
@@ -143,7 +174,7 @@ LINPHONE_PUBLIC const char *linphone_conference_get_ID(const LinphoneConference 
 /**
   * Set the conference id as string
   */
-LINPHONE_PUBLIC void linphone_conference_set_ID(const LinphoneConference *obj, const char *conferenceID);
+LINPHONE_PUBLIC void linphone_conference_set_ID(LinphoneConference *obj, const char *conferenceID);
 
 /**
  * @}

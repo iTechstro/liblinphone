@@ -1719,6 +1719,14 @@ extern "C" void Java_org_linphone_core_LinphoneCoreImpl_delete(JNIEnv* env, jobj
 	}
 }
 
+extern "C" jobject getCore(JNIEnv *env, LinphoneCore *cptr, bool_t takeref) {
+	LinphoneJavaBindings *ljb = (LinphoneJavaBindings *)linphone_core_get_user_data(cptr);
+	if (ljb) {
+		return ljb->getCore();
+	}
+	return NULL;
+}
+
 extern "C" void Java_org_linphone_core_LinphoneCoreImpl_addListener(JNIEnv* env, jobject thiz, jlong lc, jobject jlistener) {
 	LinphoneJavaBindings *ljb = (LinphoneJavaBindings *) linphone_core_get_user_data((LinphoneCore *)lc);
 	LinphoneCoreVTable *vTable = linphone_core_v_table_new();
@@ -8134,7 +8142,7 @@ extern "C" jlong Java_org_linphone_core_LinphoneConferenceParamsImpl_createInsta
 	jfieldID native_ptr_attr = env->GetFieldID(core_class, "nativePtr", "J");
 	LinphoneCore *core = NULL;
 	if(jcore) core = (LinphoneCore *)env->GetLongField(jcore, native_ptr_attr);
-	return (jlong)linphone_conference_params_new(core);
+	return (jlong)linphone_core_create_conference_params(core);
 }
 
 extern "C" jlong Java_org_linphone_core_LinphoneConferenceParamsImpl_copyInstance(JNIEnv *env, jobject thiz, jlong paramsPtr) {
@@ -8150,7 +8158,7 @@ extern "C" void Java_org_linphone_core_LinphoneConferenceParamsImpl_enableVideo(
 }
 
 extern "C" jboolean Java_org_linphone_core_LinphoneConferenceParamsImpl_isVideoRequested(JNIEnv *env, jobject thiz, jlong paramsPtr) {
-	return linphone_conference_params_video_requested((LinphoneConferenceParams *)paramsPtr);
+	return linphone_conference_params_video_enabled((LinphoneConferenceParams *)paramsPtr);
 }
 
 extern "C" jobjectArray Java_org_linphone_core_LinphoneConferenceImpl_getParticipants(JNIEnv *env, jobject thiz, jlong pconference) {

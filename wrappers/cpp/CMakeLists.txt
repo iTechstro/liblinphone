@@ -42,6 +42,15 @@ add_library(linphone++ SHARED
 	tools.cc
 	${CMAKE_CURRENT_BINARY_DIR}/src/linphone++.cc
 )
+if(APPLE)
+	set_target_properties(linphone++ PROPERTIES OUTPUT_NAME linphone++)
+else()
+	set_target_properties(linphone++ PROPERTIES OUTPUT_NAME liblinphone++)
+endif()
+set_target_properties(linphone++ PROPERTIES PREFIX "")
+if(MSVC)
+    set_target_properties(linphone++ PROPERTIES PDB_NAME liblinphone++)
+endif()
 target_compile_definitions(linphone++ PRIVATE "-DLINPHONECXX_EXPORTS")
 target_link_libraries(linphone++
 	PRIVATE ${BCTOOLBOX_CORE_LIBRARIES} ${BELLESIP_LIBRARIES} linphone

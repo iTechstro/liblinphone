@@ -38,6 +38,22 @@ using namespace::std;
 
 LINPHONE_BEGIN_NAMESPACE
 
+
+MSBandwidthController *BandwithControllerService::getBandWidthController(){
+	return mBandwidthController;
+}
+
+void BandwithControllerService::initialize(){
+	lInfo() << "StreamsGroup's shared bandwidth controller created.";
+	mBandwidthController = ms_bandwidth_controller_new();
+}
+
+void BandwithControllerService::destroy(){
+	ms_bandwidth_controller_destroy(mBandwidthController);
+	mBandwidthController = nullptr;
+}
+
+
 /*
  * MS2Stream implementation
  */
@@ -50,6 +66,15 @@ MS2Stream::MS2Stream(StreamsGroup &sg, const OfferAnswerContext &params) : Strea
 	_linphone_call_stats_set_received_rtcp(mStats, nullptr);
 	_linphone_call_stats_set_sent_rtcp(mStats, nullptr);
 	_linphone_call_stats_set_ice_state(mStats, LinphoneIceStateNotActivated);
+	/* Install the BandwithControllerService, that olds the ms2 MSBandwidthController, which is needed to manage
+	 * the audio and the video stream together, when in a conference only. 
+	 * For individual calls, the MSBandwidthController of the LinphoneCore is used.
+	 * The reasons are both:
+	 * - the MSBandwidthController doesn't manage conferences for the moment, only one audio and/or one video stream.
+	 * - when running server-side, the bandwidth is considered as unlimited locally. There is hence no way to consider that there could be 
+	 * interaction between streams from different connected participants.
+	 */
+	sg.installSharedService<BandwithControllerService>();
 }
 
 void MS2Stream::removeFromBundle(){
@@ -255,7 +280,13 @@ void MS2Stream::configureAdaptiveRateControl (const OfferAnswerContext &params) 
 	}
 	if (isAdvanced) {
 		lInfo() << "Setting up advanced rate control";
-		ms_bandwidth_controller_add_stream(getCCore()->bw_controller, ms);
+		if (getMixer() == nullptr){
+			// Use the core's bandwidth controller.
+			ms_bandwidth_controller_add_stream(getCCore()->bw_controller, ms);
+		}else{
+			// Use the streamsgroup's shared bandwidth controller.
+			ms_bandwidth_controller_add_stream(getGroup().getSharedService<BandwithControllerService>()->getBandWidthController(), ms);
+		}
 		media_stream_enable_adaptive_bitrate_control(ms, false);
 	} else {
 		media_stream_set_adaptive_bitrate_algorithm(ms, MSQosAnalyzerAlgorithmSimple);
@@ -362,28 +393,32 @@ void MS2Stream::render(const OfferAnswerContext &params, CallSession::State targ
 		&& (targetState == CallSession::State::OutgoingEarlyMedia))) {
 		rtp_session_set_symmetric_rtp(mSessions.rtp_session, false);
 	}
-	media_stream_set_max_network_bitrate(getMediaStream(), linphone_core_get_upload_bandwidth(getCCore()) * 1000);
-	if (isMulticast)
-		rtp_session_set_multicast_ttl(mSessions.rtp_session, stream->ttl);
-	rtp_session_enable_rtcp_mux(mSessions.rtp_session, stream->rtcp_mux);
-		// Valid local tags are > 0
-	if (sal_stream_description_has_srtp(stream)) {
-		int cryptoIdx = Sal::findCryptoIndexFromTag(params.localStreamDescription->crypto, static_cast<unsigned char>(stream->crypto_local_tag));
-		if (cryptoIdx >= 0) {
-			ms_media_stream_sessions_set_srtp_recv_key_b64(&ms->sessions, stream->crypto[0].algo, stream->crypto[0].master_key);
-			ms_media_stream_sessions_set_srtp_send_key_b64(&ms->sessions, stream->crypto[0].algo, 
-								       params.localStreamDescription->crypto[cryptoIdx].master_key);
-		} else
-			lWarning() << "Failed to find local crypto algo with tag: " << stream->crypto_local_tag;
-	}
-	ms_media_stream_sessions_set_encryption_mandatory(&ms->sessions, getMediaSessionPrivate().isEncryptionMandatory());
-	configureRtpSessionForRtcpFb(params);
-	configureRtpSessionForRtcpXr(params);
-	configureAdaptiveRateControl(params);
 	
-	if (stream->dtls_role != SalDtlsRoleInvalid){ /* If DTLS is available at both end points */
-		/* Give the peer certificate fingerprint to dtls context */
-		ms_dtls_srtp_set_peer_fingerprint(ms->sessions.dtls_context, params.remoteStreamDescription->dtls_fingerprint);
+	if (getState() == Stream::Stopped){
+		/* These things below are not expected to change while the stream is running. */
+		media_stream_set_max_network_bitrate(getMediaStream(), mOutputBandwidth * 1000);
+		if (isMulticast)
+			rtp_session_set_multicast_ttl(mSessions.rtp_session, stream->ttl);
+		rtp_session_enable_rtcp_mux(mSessions.rtp_session, stream->rtcp_mux);
+			// Valid local tags are > 0
+		if (sal_stream_description_has_srtp(stream)) {
+			int cryptoIdx = Sal::findCryptoIndexFromTag(params.localStreamDescription->crypto, static_cast<unsigned char>(stream->crypto_local_tag));
+			if (cryptoIdx >= 0) {
+				ms_media_stream_sessions_set_srtp_recv_key_b64(&ms->sessions, stream->crypto[0].algo, stream->crypto[0].master_key);
+				ms_media_stream_sessions_set_srtp_send_key_b64(&ms->sessions, stream->crypto[0].algo, 
+									params.localStreamDescription->crypto[cryptoIdx].master_key);
+			} else
+				lWarning() << "Failed to find local crypto algo with tag: " << stream->crypto_local_tag;
+		}
+		ms_media_stream_sessions_set_encryption_mandatory(&ms->sessions, getMediaSessionPrivate().isEncryptionMandatory());
+		configureRtpSessionForRtcpFb(params);
+		configureRtpSessionForRtcpXr(params);
+		configureAdaptiveRateControl(params);
+		
+		if (stream->dtls_role != SalDtlsRoleInvalid){ /* If DTLS is available at both end points */
+			/* Give the peer certificate fingerprint to dtls context */
+			ms_dtls_srtp_set_peer_fingerprint(ms->sessions.dtls_context, params.remoteStreamDescription->dtls_fingerprint);
+		}
 	}
 	
 	switch(targetState){
@@ -750,6 +785,7 @@ RtpProfile * MS2Stream::makeProfile(const SalMediaDescription *md, const SalStre
 			rtp_profile_set_payload(profile, number, pt);
 	}
 	mRtpProfile = profile;
+	mOutputBandwidth = bandwidth;
 	return profile;
 }
 
@@ -792,14 +828,12 @@ void MS2Stream::stop(){
 		
 		if (statsType != -1) listener->onUpdateMediaInfoForReporting(getMediaSession().getSharedFromThis(), statsType);
 		
-		/*
-		 * FIXME : very very ugly way to manage the conference. Worse, it can remove from a conference a stream that has never been part 
-		 * of any conference.
-		 * Solution: let the Conference object manage the StreamsGroups that are part of a conference.
-		 */
-		if (getType() == SalAudio) listener->onCallSessionConferenceStreamStopping(getMediaSession().getSharedFromThis());
 	}
-	ms_bandwidth_controller_remove_stream(getCCore()->bw_controller, getMediaStream());
+	if (getMixer() == nullptr){
+		ms_bandwidth_controller_remove_stream(getCCore()->bw_controller, getMediaStream());
+	}else{
+		ms_bandwidth_controller_remove_stream(getGroup().getSharedService<BandwithControllerService>()->getBandWidthController(), getMediaStream());
+	}
 	updateStats();
 	handleEvents();
 	stopEventHandling();
@@ -1088,7 +1122,31 @@ bool MS2Stream::isTransportOwner() const{
 
 int MS2Stream::getAvpfRrInterval()const{
 	MediaStream *ms = getMediaStream();
-	return media_stream_get_state(ms) == MSStreamStarted ? media_stream_get_avpf_rr_interval(ms) : 0;
+	return ms && media_stream_get_state(ms) == MSStreamStarted ? media_stream_get_avpf_rr_interval(ms) : 0;
+}
+
+void MS2Stream::connectToMixer(StreamMixer *mixer){
+	bool wasRunning = getState() == Running;
+	if (wasRunning) stop();
+	Stream::connectToMixer(mixer);
+	if (wasRunning){
+		render(getGroup().getCurrentOfferAnswerContext().scopeStreamToIndex(getIndex()),
+			getGroup().getCurrentSessionState());
+	}
+}
+
+void MS2Stream::disconnectFromMixer(){
+	bool wasRunning = false;
+	if (getState() == Running){
+		stop();
+		wasRunning = true;
+	}
+	Stream::disconnectFromMixer();
+	if (wasRunning){
+		// Call render to take changes into account immediately.
+		render(getGroup().getCurrentOfferAnswerContext().scopeStreamToIndex(getIndex()),
+			getGroup().getCurrentSessionState());
+	}
 }
 
 MS2Stream::~MS2Stream(){

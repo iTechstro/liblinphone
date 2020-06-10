@@ -125,6 +125,18 @@ static void core_init_stop_test(void) {
 	}
 }
 
+static void core_init_unref_test(void) {
+	LinphoneCore* lc;
+	lc = linphone_factory_create_core_2(linphone_factory_get(),NULL,NULL,liblinphone_tester_get_empty_rc(), NULL, system_context);
+
+	/* until we have good certificates on our test server... */
+	linphone_core_verify_server_certificates(lc,FALSE);
+	if (BC_ASSERT_PTR_NOT_NULL(lc)) {
+		BC_ASSERT_EQUAL(linphone_core_get_global_state(lc), LinphoneGlobalOn, int, "%i");
+		linphone_core_unref(lc);
+	}
+}
+
 static void core_init_stop_start_test(void) {
 	LinphoneCore* lc;
 	lc = linphone_factory_create_core_2(linphone_factory_get(),NULL,NULL,liblinphone_tester_get_empty_rc(), NULL, system_context);
@@ -316,6 +328,28 @@ static void linphone_lpconfig_from_file_zerolen_value(void){
 
 	ms_free(rc_path);
 	lp_config_destroy(conf);
+}
+
+void linphone_lpconfig_invalid_friend(void) {
+	LinphoneCoreManager* mgr = linphone_core_manager_new2("invalid_friends_rc",FALSE);
+	LinphoneFriendList *friendList = linphone_core_get_default_friend_list(mgr->lc);
+	const bctbx_list_t *friends = linphone_friend_list_get_friends(friendList);
+	BC_ASSERT_EQUAL(bctbx_list_size(friends), 4, int, "%d");
+	linphone_core_manager_destroy(mgr);
+}
+
+void linphone_lpconfig_invalid_friend_remote_provisioning(void) {
+	LinphoneCoreManager* mgr = linphone_core_manager_new2("empty_rc",FALSE);
+
+	const char* zero_xml_file = "invalid_friends_xml";
+	char* xml_path = ms_strdup_printf("%s/rcfiles/%s", bc_tester_get_resource_dir_prefix(), zero_xml_file);
+	BC_ASSERT_EQUAL(linphone_remote_provisioning_load_file(mgr->lc, xml_path), 0, int, "%d");
+
+	LinphoneFriendList *friendList = linphone_core_get_default_friend_list(mgr->lc);
+	const bctbx_list_t *friends = linphone_friend_list_get_friends(friendList);
+	BC_ASSERT_EQUAL(bctbx_list_size(friends), 4, int, "%d");
+	linphone_core_manager_destroy(mgr);
+	ms_free(xml_path);
 }
 
 static void linphone_lpconfig_from_xml_zerolen_value(void){
@@ -648,7 +682,6 @@ static void search_friend_in_alphabetical_order(void) {
 
 	linphone_magic_search_unref(magicSearch);
 	linphone_core_manager_destroy(manager);
-
 }
 
 static void search_friend_without_filter(void) {
@@ -1572,6 +1605,114 @@ static void search_friend_chat_room_remote(void) {
 	linphone_core_manager_destroy(pauline);
 }
 
+static void search_friend_non_default_list(void) {
+	LinphoneMagicSearch *magicSearch = NULL;
+	bctbx_list_t *resultList = NULL;
+	LinphoneCoreManager* manager = linphone_core_manager_new2("empty_rc", FALSE);
+	LinphoneFriendList *lfl = linphone_core_get_default_friend_list(manager->lc);
+	LinphoneFriendList *otherFl = linphone_core_create_friend_list(manager->lc);
+
+	// Add a friend in the default one
+	const char *name1SipUri = {"sip:toto@sip.example.org"};
+	const char *name1 = {"STEPHANIE delarue"};
+	LinphoneFriend *friend1 = linphone_core_create_friend(manager->lc);
+	LinphoneVcard *vcard1 = linphone_factory_create_vcard(linphone_factory_get());
+	linphone_vcard_set_full_name(vcard1, name1); // STEPHANIE delarue
+	linphone_vcard_set_url(vcard1, name1SipUri); //sip:toto@sip.example.org
+	linphone_vcard_add_sip_address(vcard1, name1SipUri);
+	linphone_friend_set_vcard(friend1, vcard1);
+	BC_ASSERT_EQUAL(linphone_friend_list_add_local_friend(lfl, friend1), LinphoneFriendListOK, int, "%d");
+
+	// Add a friend in the new one, before it is added to the Core
+	const char *name2SipUri = {"sip:stephanie@sip.example.org"};
+	const char *name3SipUri = {"sip:alber@sip.example.org"};
+	const char *name2 = {"alias delarue"};
+	const char *name3 = {"Alber josh"};
+
+	LinphoneFriend *friend2 = linphone_core_create_friend(manager->lc);
+	LinphoneFriend *friend3 = linphone_core_create_friend(manager->lc);
+
+	LinphoneVcard *vcard2 = linphone_factory_create_vcard(linphone_factory_get());
+	LinphoneVcard *vcard3 = linphone_factory_create_vcard(linphone_factory_get());
+
+	linphone_vcard_set_full_name(vcard2, name2); // alias delarue
+	linphone_vcard_set_url(vcard2, name2SipUri); //sip:stephanie@sip.example.org
+	linphone_vcard_add_sip_address(vcard2, name2SipUri);
+	linphone_friend_set_vcard(friend2, vcard2);
+	BC_ASSERT_EQUAL(linphone_friend_list_add_local_friend(otherFl, friend2), LinphoneFriendListOK, int, "%d");
+
+	linphone_vcard_set_full_name(vcard3, name3); // Alber josh
+	linphone_vcard_set_url(vcard3, name3SipUri); //sip:alber@sip.example.org
+	linphone_vcard_add_sip_address(vcard3, name3SipUri);
+	linphone_friend_set_vcard(friend3, vcard3);
+	BC_ASSERT_EQUAL(linphone_friend_list_add_local_friend(otherFl, friend3), LinphoneFriendListOK, int, "%d");
+
+	// Add friend list to the Core
+	linphone_core_add_friend_list(manager->lc, otherFl);
+
+	// Add a friend in the new one once it is added to the Core
+	const char *name4SipUri = {"sip:gauthier@sip.example.org"};
+	const char *name5SipUri = {"sip:gal@sip.example.org"};
+	const char *name4 = {"gauthier wei"};
+	const char *name5 = {"gal tcho"};
+	
+	LinphoneFriend *friend4 = linphone_core_create_friend(manager->lc);
+	LinphoneFriend *friend5 = linphone_core_create_friend(manager->lc);
+
+	LinphoneVcard *vcard4 = linphone_factory_create_vcard(linphone_factory_get());
+	LinphoneVcard *vcard5 = linphone_factory_create_vcard(linphone_factory_get());
+
+	linphone_vcard_set_full_name(vcard4, name4); // gauthier wei
+	linphone_vcard_set_url(vcard4, name4SipUri); //sip:gauthier@sip.example.org
+	linphone_vcard_add_sip_address(vcard4, name4SipUri);
+	linphone_friend_set_vcard(friend4, vcard4);
+	BC_ASSERT_EQUAL(linphone_friend_list_add_local_friend(otherFl, friend4), LinphoneFriendListOK, int, "%d");
+
+	linphone_vcard_set_full_name(vcard5, name5); // gal tcho
+	linphone_vcard_set_url(vcard5, name5SipUri); //sip:gal@sip.example.org
+	linphone_vcard_add_sip_address(vcard5, name5SipUri);
+	linphone_friend_set_vcard(friend5, vcard5);
+	BC_ASSERT_EQUAL(linphone_friend_list_add_local_friend(otherFl, friend5), LinphoneFriendListOK, int, "%d");
+
+	magicSearch = linphone_magic_search_new(manager->lc);
+
+	resultList = linphone_magic_search_get_contact_list_from_filter(magicSearch, "", "");
+
+	if (BC_ASSERT_PTR_NOT_NULL(resultList)) {
+		BC_ASSERT_EQUAL(bctbx_list_size(resultList), 5, int, "%d");
+		_check_friend_result_list(manager->lc, resultList, 0, name3SipUri, NULL);//"sip:stephanie@sip.example.org"
+		_check_friend_result_list(manager->lc, resultList, 1, name2SipUri, NULL);//"sip:alber@sip.example.org"
+		_check_friend_result_list(manager->lc, resultList, 2, name5SipUri, NULL);//"sip:gal@sip.example.org"
+		_check_friend_result_list(manager->lc, resultList, 3, name4SipUri, NULL);//"sip:gauthier@sip.example.org"
+		_check_friend_result_list(manager->lc, resultList, 4, name1SipUri, NULL);//"sip:toto@sip.example.org"
+		bctbx_list_free_with_data(resultList, (bctbx_list_free_func)linphone_magic_search_unref);
+	}
+
+	linphone_magic_search_reset_search_cache(magicSearch);
+
+	linphone_friend_list_remove_friend(lfl, friend1);
+	linphone_friend_list_remove_friend(otherFl, friend2);
+	linphone_friend_list_remove_friend(otherFl, friend3);
+	linphone_friend_list_remove_friend(otherFl, friend4);
+	linphone_friend_list_remove_friend(otherFl, friend5);
+
+	if (friend1) linphone_friend_unref(friend1);
+	if (friend2) linphone_friend_unref(friend2);
+	if (friend3) linphone_friend_unref(friend3);
+	if (friend4) linphone_friend_unref(friend4);
+	if (friend5) linphone_friend_unref(friend5);
+
+	if (vcard1) linphone_vcard_unref(vcard1);
+	if (vcard2) linphone_vcard_unref(vcard2);
+	if (vcard3) linphone_vcard_unref(vcard3);
+	if (vcard4) linphone_vcard_unref(vcard4);
+	if (vcard5) linphone_vcard_unref(vcard5);
+
+	linphone_magic_search_unref(magicSearch);
+	linphone_friend_list_unref(otherFl);
+	linphone_core_manager_destroy(manager);
+}
+
 /*the webrtc AEC implementation is brought to mediastreamer2 by a plugin.
  * We finally check here that if the plugin is correctly loaded and the right choice of echo canceller implementation is made*/
 static void echo_canceller_check(void){
@@ -1593,7 +1734,7 @@ static void echo_canceller_check(void){
 
 #if defined(ANDROID)
 	expected_filter = "MSWebRTCAECM";
-#elif defined(__linux) || (defined(__APPLE__) && !TARGET_OS_IPHONE) || defined(_WIN32)
+#elif defined(__linux__) || (defined(__APPLE__) && !TARGET_OS_IPHONE) || defined(_WIN32)
 	expected_filter = "MSWebRTCAEC";
 #endif
 	if (ec_filter){
@@ -1674,6 +1815,163 @@ static void dial_plan(void) {
 	}
 	bctbx_list_free_with_data(dial_plans, (bctbx_list_free_func)linphone_dial_plan_unref);
 }
+
+static void audio_devices(void) {
+	LinphoneCoreManager* manager = linphone_core_manager_new("marie_rc");
+	LinphoneCore *core = manager->lc;
+
+	bctbx_list_t *sound_devices = linphone_core_get_sound_devices_list(core);
+	int sound_devices_count = bctbx_list_size(sound_devices);
+	BC_ASSERT_GREATER_STRICT(sound_devices_count, 0, int, "%d");
+	bctbx_list_free(sound_devices);
+
+	// Check extended audio devices list matches legacy sound devices list
+	bctbx_list_t *audio_devices = linphone_core_get_extended_audio_devices(core);
+	int audio_devices_count = bctbx_list_size(audio_devices);
+	BC_ASSERT_EQUAL(audio_devices_count, sound_devices_count, int, "%d");
+	bctbx_list_free_with_data(audio_devices, (void (*)(void *))linphone_audio_device_unref);
+
+	// Check legacy sound card selection matches new audio devices API
+	const char *capture_device = linphone_core_get_capture_device(core);
+	BC_ASSERT_PTR_NOT_NULL(capture_device);
+	if (capture_device) {
+		const LinphoneAudioDevice *input_device = linphone_core_get_default_input_audio_device(core);
+		BC_ASSERT_PTR_NOT_NULL(input_device);
+		if (input_device) {
+			BC_ASSERT_STRING_EQUAL(linphone_audio_device_get_id(input_device), capture_device);
+		}
+	}
+
+	// Check legacy sound card selection matches new audio devices API
+	const char *playback_device = linphone_core_get_playback_device(core);
+	BC_ASSERT_PTR_NOT_NULL(playback_device);
+	if (playback_device) {
+		const LinphoneAudioDevice *output_device = linphone_core_get_default_output_audio_device(core);
+		BC_ASSERT_PTR_NOT_NULL(output_device);
+		if (output_device) {
+			BC_ASSERT_STRING_EQUAL(linphone_audio_device_get_id(output_device), playback_device);
+		}
+	}
+
+	// We are not in call so there is no current input audio device
+	BC_ASSERT_PTR_NULL(linphone_core_get_input_audio_device(core));
+	BC_ASSERT_PTR_NULL(linphone_core_get_output_audio_device(core));
+	
+	// Check that devices list is empty as the current one type is UNKNOWN
+	audio_devices = linphone_core_get_audio_devices(core);
+	audio_devices_count = bctbx_list_size(audio_devices);
+	BC_ASSERT_EQUAL(audio_devices_count, 0, int, "%d");
+	bctbx_list_free_with_data(audio_devices, (void (*)(void *))linphone_audio_device_unref);
+
+	// Let's add a new sound card and check it appears correctly in audio devices list
+	MSFactory *factory = linphone_core_get_ms_factory(core);
+	MSSndCardManager *sndcard_manager = ms_factory_get_snd_card_manager(factory);
+	ms_snd_card_manager_register_desc(sndcard_manager, &dummy_test_snd_card_desc);
+	linphone_core_reload_sound_devices(core);
+	BC_ASSERT_EQUAL(manager->stat.number_of_LinphoneCoreAudioDevicesListUpdated, 1, int, "%d");
+
+	audio_devices = linphone_core_get_extended_audio_devices(core);
+	audio_devices_count = bctbx_list_size(audio_devices);
+	BC_ASSERT_EQUAL(audio_devices_count, sound_devices_count + 1, int, "%d");
+	LinphoneAudioDevice *audio_device = (LinphoneAudioDevice *)bctbx_list_get_data(audio_devices);
+	BC_ASSERT_PTR_NOT_NULL(audio_device);
+	if (!audio_device) {
+		goto end;
+	}
+
+	// Check the Audio Device object has correct values
+	linphone_audio_device_ref(audio_device);
+	bctbx_list_free_with_data(audio_devices, (void (*)(void *))linphone_audio_device_unref);
+	BC_ASSERT_EQUAL(linphone_audio_device_get_type(audio_device), LinphoneAudioDeviceTypeBluetooth, int, "%d");
+	BC_ASSERT_TRUE(linphone_audio_device_has_capability(audio_device, LinphoneAudioDeviceCapabilityPlay));
+	BC_ASSERT_TRUE(linphone_audio_device_has_capability(audio_device, LinphoneAudioDeviceCapabilityRecord));
+	BC_ASSERT_STRING_EQUAL(linphone_audio_device_get_device_name(audio_device), DUMMY_TEST_SOUNDCARD);
+	
+	// Check that device is in the audio devices list
+	audio_devices = linphone_core_get_audio_devices(core);
+	audio_devices_count = bctbx_list_size(audio_devices);
+	BC_ASSERT_EQUAL(audio_devices_count, 1, int, "%d");
+	bctbx_list_free_with_data(audio_devices, (void (*)(void *))linphone_audio_device_unref);
+
+	// Check that we can change the default audio device
+	const LinphoneAudioDevice *input_device = linphone_core_get_default_input_audio_device(core);
+	BC_ASSERT_PTR_NOT_NULL(input_device);
+	if (input_device) {
+		BC_ASSERT_PTR_NOT_EQUAL(audio_device, input_device);
+	}
+	linphone_core_set_default_input_audio_device(core, audio_device);
+	input_device = linphone_core_get_default_input_audio_device(core);
+	BC_ASSERT_PTR_NOT_NULL(input_device);
+	if (input_device) {
+		BC_ASSERT_PTR_EQUAL(audio_device, input_device);
+	}
+
+	const LinphoneAudioDevice *output_device = linphone_core_get_default_output_audio_device(core);
+	BC_ASSERT_PTR_NOT_NULL(output_device);
+	if (output_device) {
+		BC_ASSERT_PTR_NOT_EQUAL(audio_device, output_device);
+	}
+	linphone_core_set_default_output_audio_device(core, audio_device);
+	output_device = linphone_core_get_default_output_audio_device(core);
+	BC_ASSERT_PTR_NOT_NULL(output_device);
+	if (output_device) {
+		BC_ASSERT_PTR_EQUAL(audio_device, output_device);
+	}
+
+	// We are not in call so this should do nothing
+	linphone_core_set_input_audio_device(core, audio_device);
+	BC_ASSERT_EQUAL(manager->stat.number_of_LinphoneCoreAudioDeviceChanged, 0, int, "%d");
+	linphone_core_set_output_audio_device(core, audio_device);
+	BC_ASSERT_EQUAL(manager->stat.number_of_LinphoneCoreAudioDeviceChanged, 0, int, "%d");
+
+	// Let's add another bluetooth sound card
+	ms_snd_card_manager_register_desc(sndcard_manager, &dummy2_test_snd_card_desc);
+	linphone_core_reload_sound_devices(core);
+	BC_ASSERT_EQUAL(manager->stat.number_of_LinphoneCoreAudioDevicesListUpdated, 2, int, "%d");
+
+	// Check that device is in the extended audio devices list
+	audio_devices = linphone_core_get_extended_audio_devices(core);
+	audio_devices_count = bctbx_list_size(audio_devices);
+	BC_ASSERT_EQUAL(audio_devices_count, sound_devices_count + 2, int, "%d");
+	bctbx_list_free_with_data(audio_devices, (void (*)(void *))linphone_audio_device_unref);
+	
+	// Check that device is not in the simple audio devices list as we already have a bluetooth audio device
+	audio_devices = linphone_core_get_audio_devices(core);
+	audio_devices_count = bctbx_list_size(audio_devices);
+	BC_ASSERT_EQUAL(audio_devices_count, 1, int, "%d");
+	bctbx_list_free_with_data(audio_devices, (void (*)(void *))linphone_audio_device_unref);
+
+	ms_snd_card_manager_unregister_desc(sndcard_manager, &dummy_test_snd_card_desc);
+	linphone_core_reload_sound_devices(core);
+	BC_ASSERT_EQUAL(manager->stat.number_of_LinphoneCoreAudioDevicesListUpdated, 3, int, "%d");
+
+	// Check that device is no longer in the extended audio devices list
+	audio_devices = linphone_core_get_extended_audio_devices(core);
+	audio_devices_count = bctbx_list_size(audio_devices);
+	BC_ASSERT_EQUAL(audio_devices_count, sound_devices_count + 1, int, "%d");
+	bctbx_list_free_with_data(audio_devices, (void (*)(void *))linphone_audio_device_unref);
+
+	// Check that the device we removed is no longer the default
+	input_device = linphone_core_get_default_input_audio_device(core);
+	BC_ASSERT_PTR_NOT_NULL(input_device);
+	if (input_device) {
+		BC_ASSERT_STRING_NOT_EQUAL(linphone_audio_device_get_device_name(input_device), DUMMY_TEST_SOUNDCARD);
+		MSSndCard *sndcard = ms_snd_card_manager_get_default_capture_card(sndcard_manager);
+		BC_ASSERT_STRING_EQUAL(linphone_audio_device_get_device_name(input_device), ms_snd_card_get_name(sndcard));
+	}
+	output_device = linphone_core_get_default_output_audio_device(core);
+	BC_ASSERT_PTR_NOT_NULL(output_device);
+	if (output_device) {
+		BC_ASSERT_STRING_NOT_EQUAL(linphone_audio_device_get_device_name(output_device), DUMMY_TEST_SOUNDCARD);
+		MSSndCard *sndcard = ms_snd_card_manager_get_default_playback_card(sndcard_manager);
+		BC_ASSERT_STRING_EQUAL(linphone_audio_device_get_device_name(input_device), ms_snd_card_get_name(sndcard));
+	}
+
+	linphone_audio_device_unref(audio_device);
+end:
+	linphone_core_manager_destroy(manager);
+}
+
 test_t setup_tests[] = {
 	TEST_NO_TAG("Version check", linphone_version_test),
 	TEST_NO_TAG("Linphone Address", linphone_address_test),
@@ -1682,6 +1980,7 @@ test_t setup_tests[] = {
 	TEST_NO_TAG("Linphone core init/uninit", core_init_test),
 	TEST_NO_TAG("Linphone core init/uninit from existing rc", core_init_test_2),
 	TEST_NO_TAG("Linphone core init/stop/uninit", core_init_stop_test),
+	TEST_NO_TAG("Linphone core init/unref", core_init_unref_test),
 	TEST_NO_TAG("Linphone core init/stop/start/uninit", core_init_stop_start_test),
 	TEST_NO_TAG("Linphone random transport port",core_sip_transport_test),
 	TEST_NO_TAG("Linphone interpret url", linphone_interpret_url_test),
@@ -1689,6 +1988,8 @@ test_t setup_tests[] = {
 	TEST_NO_TAG("LPConfig zero_len value from buffer", linphone_lpconfig_from_buffer_zerolen_value),
 	TEST_NO_TAG("LPConfig zero_len value from file", linphone_lpconfig_from_file_zerolen_value),
 	TEST_NO_TAG("LPConfig zero_len value from XML", linphone_lpconfig_from_xml_zerolen_value),
+	TEST_NO_TAG("LPConfig invalid friend", linphone_lpconfig_invalid_friend),
+	TEST_NO_TAG("LPConfig invalid friend remote provisoning", linphone_lpconfig_invalid_friend_remote_provisioning),
 	TEST_NO_TAG("Chat room", chat_room_test),
 	TEST_NO_TAG("Devices reload", devices_reload_test),
 	TEST_NO_TAG("Codec usability", codec_usability_test),
@@ -1715,8 +2016,10 @@ test_t setup_tests[] = {
 	TEST_ONE_TAG("Search friend in large friends database", search_friend_large_database, "MagicSearch"),
 	TEST_ONE_TAG("Search friend result has capabilities", search_friend_get_capabilities, "MagicSearch"),
 	TEST_ONE_TAG("Search friend result chat room remote", search_friend_chat_room_remote, "MagicSearch"),
+	TEST_ONE_TAG("Search friend in non default friend list", search_friend_non_default_list, "MagicSearch"),
 	TEST_NO_TAG("Delete friend in linphone rc", delete_friend_from_rc),
-	TEST_NO_TAG("Dialplan", dial_plan)
+	TEST_NO_TAG("Dialplan", dial_plan),
+	TEST_NO_TAG("Audio devices", audio_devices)
 };
 
 test_suite_t setup_test_suite = {"Setup", NULL, NULL, liblinphone_tester_before_each, liblinphone_tester_after_each,

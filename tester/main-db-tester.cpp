@@ -41,7 +41,7 @@ public:
 	MainDbProvider () : MainDbProvider("db/linphone.db") { }
 
 	MainDbProvider (const char *db_file) {
-		mCoreManager = linphone_core_manager_create("marie_rc");
+		mCoreManager = linphone_core_manager_create("empty_rc");
 		char *roDbPath = bc_tester_res(db_file);
 		char *rwDbPath = bc_tester_file("linphone.db");
 		BC_ASSERT_FALSE(liblinphone_tester_copy_file(roDbPath, rwDbPath));
@@ -198,7 +198,7 @@ static void get_chat_rooms() {
 	shared_ptr<AbstractChatRoom> emptyMessageRoom = nullptr;
 	shared_ptr<AbstractChatRoom> oneMessageRoom = nullptr;
 	shared_ptr<AbstractChatRoom> multiMessageRoom = nullptr;
-	for (const auto chatRoom : chatRooms) {
+	for (const auto &chatRoom : chatRooms) {
 		if (emptyMessageRoom == nullptr && chatRoom->getMessageHistorySize() == 0) {
 			emptyMessageRoom = chatRoom;
 		}
@@ -267,9 +267,9 @@ static void load_a_lot_of_chatrooms(void) {
 	chrono::high_resolution_clock::time_point end = chrono::high_resolution_clock::now();
 	long ms = (long) chrono::duration_cast<chrono::milliseconds>(end - start).count();
 #if __APPLE__
-	BC_ASSERT_LOWER(ms, 2000, long, "%li");
-#else
 	BC_ASSERT_LOWER(ms, 1000, long, "%li");
+#else
+	BC_ASSERT_LOWER(ms, 500, long, "%li");
 #endif
 }
 

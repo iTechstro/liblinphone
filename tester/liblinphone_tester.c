@@ -34,13 +34,14 @@ static const char* liblinphone_helper =
 		"\t\t\t--no-ipv6 (turn off IPv6 in LinphoneCore, tests requiring IPv6 will be skipped)\n"
 		"\t\t\t--show-account-manager-logs (show temporary test account creation logs)\n"
 		"\t\t\t--no-account-creator (use file database flexisip for account creation)\n"
+		"\t\t\t--file-transfer-server-url <url> - override the default https://transfer.example.org:9444/http-file-transfer-server/hft.php\n"
 		;
 
 static int liblinphone_tester_start(int argc, char *argv[]) {
 	int i;
 	int ret;
 
-#ifdef __linux
+#ifdef __linux__
 	/* Hack to tell mediastreamer2 alsa plugin to not detect direct driver interface ('sysdefault' card), because
 	 * it makes ioctls to the driver that hang the system a few seconds on some platforms (observed on Mac+Parallels).
 	 * This doesn't prevent alsa to be used during tests, it will be the case with 'default' card.
@@ -60,6 +61,9 @@ static int liblinphone_tester_start(int argc, char *argv[]) {
 		}else if (strcmp(argv[i],"--dns-hosts")==0){
 			CHECK_ARG("--dns-hosts", ++i, argc);
 			userhostsfile=argv[i];
+		}else if (strcmp(argv[i],"--file-transfer-server-url")==0){
+			CHECK_ARG("--file-transfer-server-url", ++i, argc);
+			file_transfer_url=argv[i];
 		} else if (strcmp(argv[i],"--keep-recorded-files")==0){
 			liblinphone_tester_keep_recorded_files(TRUE);
 		} else if (strcmp(argv[i],"--disable-leak-detector")==0){
@@ -320,6 +324,8 @@ void liblinphone_tester_add_suites() {
 #ifdef HAVE_ADVANCED_IM
 	bc_tester_add_suite(&group_chat_test_suite);
 	bc_tester_add_suite(&secure_group_chat_test_suite);
+	bc_tester_add_suite(&ephemeral_group_chat_test_suite);
+	bc_tester_add_suite(&lime_server_auth_test_suite);
 #endif
 	bc_tester_add_suite(&tunnel_test_suite);
 	bc_tester_add_suite(&offeranswer_test_suite);
@@ -370,6 +376,7 @@ void liblinphone_tester_add_suites() {
 #endif
 	bc_tester_add_suite(&utils_test_suite);
 	bc_tester_add_suite(&call_with_rtp_bundle_test_suite);
+	bc_tester_add_suite(&shared_core_test_suite);
 }
 
 void liblinphone_tester_init(void(*ftester_printf)(int level, const char *fmt, va_list args)) {

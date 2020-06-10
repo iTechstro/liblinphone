@@ -99,6 +99,26 @@ void linphone_core_notify_call_state_changed(LinphoneCore *lc, LinphoneCall *cal
 	cleanup_dead_vtable_refs(lc);
 }
 
+void linphone_core_notify_first_call_started(LinphoneCore *lc) {
+	NOTIFY_IF_EXIST(first_call_started, lc);
+	cleanup_dead_vtable_refs(lc);
+}
+
+void linphone_core_notify_last_call_ended(LinphoneCore *lc) {
+	NOTIFY_IF_EXIST(last_call_ended, lc);
+	cleanup_dead_vtable_refs(lc);
+}
+
+void linphone_core_notify_audio_device_changed(LinphoneCore *lc, LinphoneAudioDevice *audioDevice) {
+	NOTIFY_IF_EXIST(audio_device_changed, lc, audioDevice);
+	cleanup_dead_vtable_refs(lc);
+}
+
+void linphone_core_notify_audio_devices_list_updated(LinphoneCore *lc) {
+	NOTIFY_IF_EXIST(audio_devices_list_updated, lc);
+	cleanup_dead_vtable_refs(lc);
+}
+
 void linphone_core_notify_call_encryption_changed(LinphoneCore *lc, LinphoneCall *call, bool_t on, const char *authentication_token) {
 	NOTIFY_IF_EXIST(call_encryption_changed, lc,call,on,authentication_token);
 	cleanup_dead_vtable_refs(lc);
@@ -329,6 +349,11 @@ void linphone_core_notify_chat_room_ephemeral_message_deleted (LinphoneCore *lc,
 	cleanup_dead_vtable_refs(lc);
 }
 
+void linphone_core_notify_imee_user_registration (LinphoneCore *lc, bool_t status, const char *userId, const char *info) {
+	NOTIFY_IF_EXIST(imee_user_registration, lc, status, userId, info);
+	cleanup_dead_vtable_refs(lc);
+}
+
 void linphone_core_notify_qrcode_found(LinphoneCore *lc, const char *result) {
 	NOTIFY_IF_EXIST(qrcode_found, lc, result);
 	cleanup_dead_vtable_refs(lc);
@@ -394,7 +419,10 @@ bctbx_list_t *linphone_core_get_callbacks_list(const LinphoneCore *lc) {
 	bctbx_list_t *it;
 	for(it=lc->vtable_refs; it!=NULL; it=it->next){
 		VTableReference *ref=(VTableReference*)it->data;
-		result = bctbx_list_append(result, ref->cbs);
+		if (!ref->internal) {
+			// DO NOT RETURN INTERNAL LISTENERS HERE TO PREVENT ISSUES IN WRAPPERS
+			result = bctbx_list_append(result, ref->cbs);
+		}
 	}
 	return result;
 }

@@ -75,6 +75,16 @@ set(CERTIFICATE_CLIENT_FILES
 	certificates/client/cert3.pem
 	certificates/client/key3.pem
 	certificates/client/cert2-signed-by-other-ca.pem
+	certificates/client/user1_cert.pem
+	certificates/client/user1_key.pem
+	certificates/client/user1_multiple_aliases_cert.pem
+	certificates/client/user1_multiple_aliases_key.pem
+	certificates/client/user2_cert.pem
+	certificates/client/user2_key.pem
+	certificates/client/user2_CN_cert.pem
+	certificates/client/user2_CN_key.pem
+	certificates/client/user2_revoked_cert.pem
+	certificates/client/user2_revoked_key.pem
 )
 
 set(CERTIFICATE_FILES ${CERTIFICATE_ALT_FILES} ${CERTIFICATE_CN_FILES} ${CERTIFICATE_CLIENT_FILES})
@@ -95,6 +105,8 @@ set(RC_FILES
 	rcfiles/conference_focus_rc
 	rcfiles/empty_rc
 	rcfiles/friends_rc
+	rcfiles/invalid_friends_rc
+	rcfiles/invalid_friends_xml
 	rcfiles/laure_call_logs_rc
 	rcfiles/laure_lime_x3dh_rc
 	rcfiles/laure_rc_udp
@@ -210,6 +222,7 @@ set(SOURCE_FILES_C
 	flexisip_tester.c
 	group_chat_tester.c
 	group_chat_secure_tester.c
+	group_chat_ephemeral_tester.c
 	liblinphone_tester.c
 	log_collection_tester.c
 	message_tester.c
@@ -228,6 +241,7 @@ set(SOURCE_FILES_C
 	vcard_tester.c
 	video_tester.c
 	video_quality_tester.c
+	shared_core_tester.c
 )
 
 set(SOURCE_FILES_CXX
@@ -237,6 +251,7 @@ set(SOURCE_FILES_CXX
 	multipart-tester.cpp
 	property-container-tester.cpp
 	utils-tester.cpp
+	lime-user-authentication-tester.cpp
 )
 
 if(ENABLE_ADVANCED_IM)

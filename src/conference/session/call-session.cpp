@@ -61,6 +61,7 @@ void CallSessionPrivate::notifyReferState () {
 
 void CallSessionPrivate::setState (CallSession::State newState, const string &message) {
 	L_Q();
+
 	// Keep a ref on the CallSession, otherwise it might get destroyed before the end of the method
 	shared_ptr<CallSession> ref = q->getSharedFromThis();
 	if (state != newState){
@@ -492,7 +493,6 @@ void CallSessionPrivate::init () {
 // -----------------------------------------------------------------------------
 
 void CallSessionPrivate::accept (const CallSessionParams *csp) {
-	L_Q();
 	/* Try to be best-effort in giving real local or routable contact address */
 	setContactOp();
 	if (csp)
@@ -501,8 +501,6 @@ void CallSessionPrivate::accept (const CallSessionParams *csp) {
 		op->setSentCustomHeaders(params->getPrivate()->getCustomHeaders());
 
 	op->accept();
-	if (listener)
-		listener->onSetCurrentSession(q->getSharedFromThis());
 	setState(CallSession::State::Connected, "Connected");
 }
 

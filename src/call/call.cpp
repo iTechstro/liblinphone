@@ -65,6 +65,10 @@ unsigned int CallPrivate::getTextStartCount () const {
 	return static_pointer_cast<MediaSession>(getActiveSession())->getPrivate()->getTextStartCount();
 }
 
+std::shared_ptr<MediaSession> CallPrivate::getMediaSession()const{
+	return static_pointer_cast<MediaSession>(getActiveSession());
+}
+
 MediaStream *CallPrivate::getMediaStream (LinphoneStreamType type) const {
 	auto ms = static_pointer_cast<MediaSession>(getActiveSession())->getPrivate();
 	StreamsGroup & sg = ms->getStreamsGroup();
@@ -120,8 +124,24 @@ void CallPrivate::initiateIncoming () {
 }
 
 bool CallPrivate::initiateOutgoing () {
+	L_Q();
 	shared_ptr<CallSession> session = getActiveSession();
 	bool defer = session->initiateOutgoing();
+	
+	AudioDevice *outputAudioDevice = q->getCore()->getDefaultOutputAudioDevice();
+	if (outputAudioDevice) {
+		setOutputAudioDevice(outputAudioDevice);
+	} else {
+		lWarning() << "Failed to find audio device matching default output sound card [" << q->getCore()->getCCore()->sound_conf.play_sndcard << "]";
+	}
+
+	AudioDevice *inputAudioDevice = q->getCore()->getDefaultInputAudioDevice();
+	if (inputAudioDevice) {
+		setInputAudioDevice(inputAudioDevice);
+	} else {
+		lWarning() << "Failed to find audio device matching default input sound card [" << q->getCore()->getCCore()->sound_conf.capt_sndcard << "]";
+	}
+
 	session->getPrivate()->createOp();
 	return defer;
 }
@@ -176,16 +196,6 @@ void CallPrivate::createPlayer () const {
 
 // -----------------------------------------------------------------------------
 
-void CallPrivate::initializeMediaStreams () {
-	
-}
-
-void CallPrivate::stopMediaStreams () {
-	static_pointer_cast<MediaSession>(getActiveSession())->getPrivate()->stopStreams();
-}
-
-// -----------------------------------------------------------------------------
-
 
 void CallPrivate::startRemoteRing () {
 	L_Q();
@@ -212,6 +222,46 @@ void CallPrivate::terminateBecauseOfLostMedia () {
 		<< " is lost, call is going to be terminated";
 	static_pointer_cast<MediaSession>(getActiveSession())->terminateBecauseOfLostMedia();
 	q->getCore()->getPrivate()->getToneManager()->startNamedTone(getActiveSession(), LinphoneToneCallLost);
+}
+
+void CallPrivate::setInputAudioDevice(AudioDevice *audioDevice) {
+	if ((audioDevice->getCapabilities() & static_cast<int>(AudioDevice::Capabilities::Record)) == 0) {
+		lError() << "Audio device [" << audioDevice << "] doesn't have Record capability";
+		return;
+	}
+
+	static_pointer_cast<MediaSession>(getActiveSession())->setInputAudioDevice(audioDevice);
+
+}
+
+void CallPrivate::setOutputAudioDevice(AudioDevice *audioDevice) {
+	L_Q();
+	
+	if ((audioDevice->getCapabilities() & static_cast<int>(AudioDevice::Capabilities::Play)) == 0) {
+		lError() << "Audio device [" << audioDevice << "] doesn't have Play capability";
+		return;
+	}
+
+	RingStream *ringStream = nullptr;
+	switch (q->getState()) {
+		case CallSession::State::OutgoingRinging:
+		case CallSession::State::Pausing:
+		case CallSession::State::Paused:
+			ringStream = q->getCore()->getCCore()->ringstream;
+			if (ringStream) {
+				ring_stream_set_output_ms_snd_card(ringStream, audioDevice->getSoundCard());
+			}
+			break;
+		case CallSession::State::IncomingReceived:
+			ringStream = linphone_ringtoneplayer_get_stream(q->getCore()->getCCore()->ringtoneplayer);
+			if (ringStream) {
+				ring_stream_set_output_ms_snd_card(ringStream, audioDevice->getSoundCard());
+			}
+			break;
+		default:
+			static_pointer_cast<MediaSession>(getActiveSession())->setOutputAudioDevice(audioDevice);
+			break;
+	}
 }
 
 // -----------------------------------------------------------------------------
@@ -246,20 +296,6 @@ bool CallPrivate::onCallSessionAccepted (const shared_ptr<CallSession> &session)
 	return wasRinging;
 }
 
-void CallPrivate::onCallSessionConferenceStreamStarting (const shared_ptr<CallSession> &session, bool mute) {
-	L_Q();
-	if (q->getCore()->getCCore()->conf_ctx) {
-		linphone_conference_on_call_stream_starting(q->getCore()->getCCore()->conf_ctx, L_GET_C_BACK_PTR(q), mute);
-	}
-}
-
-void CallPrivate::onCallSessionConferenceStreamStopping (const shared_ptr<CallSession> &session) {
-	L_Q();
-	LinphoneCore *lc = q->getCore()->getCCore();
-	if (lc->conf_ctx && _linphone_call_get_endpoint(L_GET_C_BACK_PTR(q)))
-		linphone_conference_on_call_stream_stopping(lc->conf_ctx, L_GET_C_BACK_PTR(q));
-}
-
 void CallPrivate::onCallSessionEarlyFailed (const shared_ptr<CallSession> &session, LinphoneErrorInfo *ei) {
 	L_Q();
 	LinphoneCallLog *log = session->getLog();
@@ -267,7 +303,8 @@ void CallPrivate::onCallSessionEarlyFailed (const shared_ptr<CallSession> &sessi
 		linphone_call_log_get_dir(log),
 		linphone_address_clone(linphone_call_log_get_from(log)),
 		linphone_address_clone(linphone_call_log_get_to(log)),
-		ei);
+		ei,
+		log->call_id);
 	linphone_call_unref(L_GET_C_BACK_PTR(q));
 }
 
@@ -279,14 +316,19 @@ void CallPrivate::onCallSessionSetReleased (const shared_ptr<CallSession> &sessi
 void CallPrivate::onCallSessionSetTerminated (const shared_ptr<CallSession> &session) {
 	L_Q();
 	LinphoneCore *core = q->getCore()->getCCore();
+	LinphoneCall *call = L_GET_C_BACK_PTR(q);
+	LinphoneConference *conf = linphone_call_get_conference(call);
+	
 	if (q->getSharedFromThis() == q->getCore()->getCurrentCall()) {
 		lInfo() << "Resetting the current call";
 		q->getCore()->getPrivate()->setCurrentCall(nullptr);
 	}
 	if (q->getCore()->getPrivate()->removeCall(q->getSharedFromThis()) != 0)
 		lError() << "Could not remove the call from the list!!!";
-	if (core->conf_ctx)
-		linphone_conference_on_call_terminating(core->conf_ctx, L_GET_C_BACK_PTR(q));
+	if (conf){
+		lInfo() << "Removing terminated call from LinphoneConference " << conf;
+		MediaConference::Conference::toCpp(conf)->removeParticipant(call);
+	}
 #if 0
 	if (lcall->chat_room)
 		linphone_chat_room_set_call(lcall->chat_room, nullptr);
@@ -303,18 +345,27 @@ void CallPrivate::onCallSessionStateChanged (const shared_ptr<CallSession> &sess
 	L_Q();
 	q->getCore()->getPrivate()->getToneManager()->update(session);
 
-	switch(state){
+	LinphoneCore *lc = q->getCore()->getCCore();
+	switch(state) {
 		case CallSession::State::OutgoingInit:
 		case CallSession::State::IncomingReceived:
 			getPlatformHelpers(q->getCore()->getCCore())->acquireWifiLock();
 			getPlatformHelpers(q->getCore()->getCCore())->acquireMcastLock();
 			getPlatformHelpers(q->getCore()->getCCore())->acquireCpuLock();
+			if (linphone_core_get_calls_nb(lc) == 1) {
+				linphone_core_notify_first_call_started(lc);
+			}
 			break;
 		case CallSession::State::Released:
 			getPlatformHelpers(q->getCore()->getCCore())->releaseWifiLock();
 			getPlatformHelpers(q->getCore()->getCCore())->releaseMcastLock();
 			getPlatformHelpers(q->getCore()->getCCore())->releaseCpuLock();
 			break;
+		case CallSession::State::End:
+		case CallSession::State::Error:
+			if (linphone_core_get_calls_nb(lc) == 0) {
+				linphone_core_notify_last_call_ended(lc);
+			}
 		default:
 			break;
 	}
@@ -361,7 +412,7 @@ void CallPrivate::onIncomingCallSessionNotified (const shared_ptr<CallSession> &
 
 void CallPrivate::onIncomingCallSessionStarted (const shared_ptr<CallSession> &session) {
 	L_Q();
-	if (linphone_core_get_calls_nb(q->getCore()->getCCore())==1) {
+	if (linphone_core_get_calls_nb(q->getCore()->getCCore()) == 1 && !q->isInConference()) {
 		L_GET_PRIVATE_FROM_C_OBJECT(q->getCore()->getCCore())->setCurrentCall(q->getSharedFromThis());
 	}
 	q->getCore()->getPrivate()->getToneManager()->startRingtone(session);
@@ -449,14 +500,6 @@ void CallPrivate::requestNotifyNextVideoFrameDecoded(){
 void CallPrivate::onCameraNotWorking (const std::shared_ptr<CallSession> &session, const char *camera_name) {
 	L_Q();
 	linphone_call_notify_camera_not_working(L_GET_C_BACK_PTR(q), camera_name);
-}
-
-void CallPrivate::onRingbackToneRequested (const shared_ptr<CallSession> &session, bool requested) {
-	L_Q();
-	if (requested && linphone_core_get_remote_ringback_tone(q->getCore()->getCCore()))
-		playingRingbackTone = true;
-	else if (!requested)
-		playingRingbackTone = false;
 }
 
 bool CallPrivate::areSoundResourcesAvailable (const shared_ptr<CallSession> &session) {
@@ -933,6 +976,58 @@ void Call::setParams (const MediaSessionParams *msp) {
 void Call::setSpeakerVolumeGain (float value) {
 	L_D();
 	static_pointer_cast<MediaSession>(d->getActiveSession())->setSpeakerVolumeGain(value);
+}
+
+void Call::setInputAudioDevice(AudioDevice *audioDevice) {
+	L_D();
+	d->setInputAudioDevice(audioDevice);
+
+	linphone_call_notify_audio_device_changed(L_GET_C_BACK_PTR(getSharedFromThis()), audioDevice->toC());
+
+}
+
+void Call::setOutputAudioDevice(AudioDevice *audioDevice) {
+	L_D();
+	d->setOutputAudioDevice(audioDevice);
+
+	linphone_call_notify_audio_device_changed(L_GET_C_BACK_PTR(getSharedFromThis()), audioDevice->toC());
+}
+
+AudioDevice* Call::getInputAudioDevice() const {
+	L_D();
+	return static_pointer_cast<MediaSession>(d->getActiveSession())->getInputAudioDevice();
+}
+
+AudioDevice* Call::getOutputAudioDevice() const {
+	L_D();
+
+	RingStream *ringStream = nullptr;
+	switch (getState()) {
+		case CallSession::State::OutgoingRinging:
+		case CallSession::State::Pausing:
+		case CallSession::State::Paused:
+			ringStream = getCore()->getCCore()->ringstream;
+			if (ringStream) {
+				MSSndCard *card = ring_stream_get_output_ms_snd_card(ringStream);
+				if (card) {
+					return getCore()->findAudioDeviceMatchingMsSoundCard(card);
+				}
+			}
+			break;
+		case CallSession::State::IncomingReceived:
+			ringStream = linphone_ringtoneplayer_get_stream(getCore()->getCCore()->ringtoneplayer);
+			if (ringStream) {
+				MSSndCard *card = ring_stream_get_output_ms_snd_card(ringStream);
+				if (card) {
+					return getCore()->findAudioDeviceMatchingMsSoundCard(card);
+				}
+			}
+			break;
+		default:
+			return static_pointer_cast<MediaSession>(d->getActiveSession())->getOutputAudioDevice();
+	}
+
+	return nullptr;
 }
 
 LINPHONE_END_NAMESPACE

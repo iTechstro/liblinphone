@@ -825,7 +825,9 @@ void Sal::cancelTimer(belle_sip_source_t *timer) {
 belle_sip_response_t *Sal::createResponseFromRequest (belle_sip_request_t *request, int code) {
 	auto response = belle_sip_response_create_from_request(request, code);
 	belle_sip_message_add_header(BELLE_SIP_MESSAGE(response), BELLE_SIP_HEADER(mUserAgentHeader));
-	belle_sip_message_add_header(BELLE_SIP_MESSAGE(response), mSupportedHeader);
+	if (mSupportedHeader) {
+		belle_sip_message_add_header(BELLE_SIP_MESSAGE(response), mSupportedHeader);
+	}
 	return response;
 }
 
@@ -960,6 +962,9 @@ LINPHONE_PUBLIC void sal_enable_pending_trans_checking (Sal *sal, bool_t value) 
 
 LINPHONE_PUBLIC void sal_enable_unconditional_answer (Sal *sal, bool_t value) {
 	sal->enableUnconditionalAnswer(value);
+}
+LINPHONE_PUBLIC void sal_set_unconditional_answer (Sal *sal, unsigned short value) {
+	sal->setUnconditionalAnswer(value);
 }
 
 LINPHONE_PUBLIC void sal_set_client_bind_port(Sal *sal, int port){

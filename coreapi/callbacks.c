@@ -207,7 +207,7 @@ static void call_received(SalCallOp *h) {
 					sal_address_unref(altAddr);
 					LinphoneErrorInfo *ei = linphone_error_info_new();
 					linphone_error_info_set(ei, nullptr, LinphoneReasonMovedPermanently, 302, "Moved permanently", nullptr);
-					linphone_core_report_early_failed_call(lc, LinphoneCallIncoming, fromAddr, toAddr, ei);
+					linphone_core_report_early_failed_call(lc, LinphoneCallIncoming, fromAddr, toAddr, ei, L_STRING_TO_C(h->getCallId()));
 					h->release();
 					sal_error_info_reset(&sei);
 					return;
@@ -223,33 +223,35 @@ static void call_received(SalCallOp *h) {
 		h->decline(SalReasonBusy);
 		LinphoneErrorInfo *ei = linphone_error_info_new();
 		linphone_error_info_set(ei, nullptr, LinphoneReasonBusy, 486, "Busy - too many calls", nullptr);
-		linphone_core_report_early_failed_call(lc, LinphoneCallIncoming, fromAddr, toAddr, ei);
+		linphone_core_report_early_failed_call(lc, LinphoneCallIncoming, fromAddr, toAddr, ei, L_STRING_TO_C(h->getCallId()));
 		h->release();
 		return;
 	}
 
-	/* Check if I'm the caller */
-	LinphoneAddress *fromAddressToSearchIfMe = nullptr;
-	if (h->getPrivacy() == SalPrivacyNone)
-		fromAddressToSearchIfMe = linphone_address_clone(fromAddr);
-	else if (pAssertedId)
-		fromAddressToSearchIfMe = linphone_address_new(pAssertedId);
-	else
-		ms_warning("Hidden from identity, don't know if it's me");
-	if (fromAddressToSearchIfMe && L_GET_PRIVATE_FROM_C_OBJECT(lc)->isAlreadyInCallWithAddress(*L_GET_CPP_PTR_FROM_C_OBJECT(fromAddressToSearchIfMe))) {
-		char *addr = linphone_address_as_string(fromAddr);
-		ms_warning("Receiving a call while one with same address [%s] is initiated, refusing this one with busy message", addr);
-		h->decline(SalReasonBusy);
-		LinphoneErrorInfo *ei = linphone_error_info_new();
-		linphone_error_info_set(ei, nullptr, LinphoneReasonBusy, 486, "Busy - duplicated call", nullptr);
-		linphone_core_report_early_failed_call(lc, LinphoneCallIncoming, fromAddr, toAddr, ei);
-		h->release();
-		linphone_address_unref(fromAddressToSearchIfMe);
-		ms_free(addr);
-		return;
+	if (lp_config_get_int(linphone_core_get_config(lc), "sip", "reject_duplicated_calls", 1)){
+		/* Check if I'm the caller */
+		LinphoneAddress *fromAddressToSearchIfMe = nullptr;
+		if (h->getPrivacy() == SalPrivacyNone)
+			fromAddressToSearchIfMe = linphone_address_clone(fromAddr);
+		else if (pAssertedId)
+			fromAddressToSearchIfMe = linphone_address_new(pAssertedId);
+		else
+			ms_warning("Hidden from identity, don't know if it's me");
+		if (fromAddressToSearchIfMe && L_GET_PRIVATE_FROM_C_OBJECT(lc)->isAlreadyInCallWithAddress(*L_GET_CPP_PTR_FROM_C_OBJECT(fromAddressToSearchIfMe))) {
+			char *addr = linphone_address_as_string(fromAddr);
+			ms_warning("Receiving a call while one with same address [%s] is initiated, refusing this one with busy message", addr);
+			h->decline(SalReasonBusy);
+			LinphoneErrorInfo *ei = linphone_error_info_new();
+			linphone_error_info_set(ei, nullptr, LinphoneReasonBusy, 486, "Busy - duplicated call", nullptr);
+			linphone_core_report_early_failed_call(lc, LinphoneCallIncoming, fromAddr, toAddr, ei, L_STRING_TO_C(h->getCallId()));
+			h->release();
+			linphone_address_unref(fromAddressToSearchIfMe);
+			ms_free(addr);
+			return;
+		}
+		if (fromAddressToSearchIfMe)
+			linphone_address_unref(fromAddressToSearchIfMe);
 	}
-	if (fromAddressToSearchIfMe)
-		linphone_address_unref(fromAddressToSearchIfMe);
 
 	LinphoneCall *call = linphone_call_new_incoming(lc, fromAddr, toAddr, h);
 	linphone_address_unref(fromAddr);
@@ -261,7 +263,7 @@ static void call_rejected(SalCallOp *h){
 	LinphoneCore *lc = reinterpret_cast<LinphoneCore *>(h->getSal()->getUserPointer());
 	LinphoneErrorInfo *ei = linphone_error_info_new();
 	linphone_error_info_from_sal_op(ei, h);
-	linphone_core_report_early_failed_call(lc, LinphoneCallIncoming, linphone_address_new(h->getFrom().c_str()), linphone_address_new(h->getTo().c_str()), ei);
+	linphone_core_report_early_failed_call(lc, LinphoneCallIncoming, linphone_address_new(h->getFrom().c_str()), linphone_address_new(h->getTo().c_str()), ei, L_STRING_TO_C(h->getCallId()));
 }
 
 static void call_ringing(SalOp *h) {

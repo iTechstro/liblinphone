@@ -110,6 +110,18 @@ public:
 	StreamsGroup & getStreamsGroup()const {
 		return *streamsGroup.get();
 	}
+	AudioDevice * getCurrentOutputAudioDevice()const {
+		return currentOutputAudioDevice;
+	}
+	void setCurrentOutputAudioDevice(AudioDevice * audioDevice) {
+		if (currentOutputAudioDevice) {
+			currentOutputAudioDevice->unref();
+		}
+		currentOutputAudioDevice = audioDevice;
+		if (currentOutputAudioDevice) {
+			currentOutputAudioDevice->ref();
+		}
+	}
 	std::shared_ptr<Participant> getMe () const;
 	void setDtlsFingerprint(const std::string &fingerPrint);
 	const std::string & getDtlsFingerprint()const;
@@ -135,7 +147,7 @@ private:
 	void setState (CallSession::State newState, const std::string &message) override;
 
 	void assignStreamsIndexesIncoming(const SalMediaDescription *md);
-	void assignStreamsIndexes();
+	void assignStreamsIndexes(bool localIsOfferer);
 	int getFirstStreamWithType(const SalMediaDescription *md, SalStreamType type);
 	void fixCallParams (SalMediaDescription *rmd, bool fromOffer);
 	void initializeParamsAccordingToIncomingCallParams () override;
@@ -161,7 +173,7 @@ private:
 	void setupZrtpHash (SalMediaDescription *md);
 	void setupImEncryptionEngineParameters (SalMediaDescription *md);
 	void transferAlreadyAssignedPayloadTypes (SalMediaDescription *oldMd, SalMediaDescription *md);
-	void updateLocalMediaDescriptionFromIce ();
+	void updateLocalMediaDescriptionFromIce(bool localIsOfferer);
 	void startDtlsOnAllStreams ();
 
 	void freeResources ();
@@ -205,7 +217,10 @@ private:
 
 	void stunAuthRequestedCb (const char *realm, const char *nonce, const char **username, const char **password, const char **ha1);
 	Stream *getStream(LinphoneStreamType type)const;
-
+	int portFromStreamIndex(int index);
+	SalMediaProto getAudioProto();
+	SalMediaProto getAudioProto(SalMediaDescription *remote_md);
+	bool hasAvpf(SalMediaDescription *md)const;
 private:
 	static const std::string ecStateStore;
 	static const int ecStateMaxLen;
@@ -235,6 +250,7 @@ private:
 	int localDescChanged = 0;
 	SalMediaDescription *biggestDesc = nullptr;
 	SalMediaDescription *resultDesc = nullptr;
+	bool localIsOfferer = false;
 	bool expectMediaInAck = false;
 	int freeStreamIndex = 0;
 	unsigned int remoteSessionId = 0;
@@ -250,6 +266,8 @@ private:
 	bool pausedByApp = false;
 	bool incomingIceReinvitePending = false;
 	bool callAcceptanceDefered = false;
+
+	AudioDevice * currentOutputAudioDevice = nullptr;
 
 	L_DECLARE_PUBLIC(MediaSession);
 };

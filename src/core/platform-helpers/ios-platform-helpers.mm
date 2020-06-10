@@ -26,12 +26,12 @@
 #include <SystemConfiguration/SystemConfiguration.h>
 #include <SystemConfiguration/CaptiveNetwork.h>
 #include <CoreLocation/CoreLocation.h>
-#include  <notify_keys.h>
-
+#include <notify_keys.h>
 #include <belr/grammarbuilder.h>
 
 #include "linphone/utils/general.h"
 #include "linphone/utils/utils.h"
+#include "c-wrapper/c-wrapper.h"
 
 #include "logger/logger.h"
 #include "platform-helpers.h"
@@ -39,6 +39,7 @@
 // TODO: Remove me
 #include "private.h"
 
+#include "core/app/ios-app-delegate.h"
 // =============================================================================
 
 using namespace std;
@@ -48,7 +49,9 @@ LINPHONE_BEGIN_NAMESPACE
 class IosPlatformHelpers : public GenericPlatformHelpers {
 public:
 	IosPlatformHelpers (std::shared_ptr<LinphonePrivate::Core> core, void *systemContext);
-	~IosPlatformHelpers () = default;
+	~IosPlatformHelpers (){
+		[mAppDelegate dealloc];
+	}
 
 	void acquireWifiLock () override {}
 	void releaseWifiLock () override {}
@@ -63,6 +66,7 @@ public:
 	string getImageResource (const string &filename) const override;
 	string getRingResource (const string &filename) const override;
 	string getSoundResource (const string &filename) const override;
+	void * getPathContext () override;
 
 	string getWifiSSID() override;
 	void setWifiSSID(const string &ssid) override;
@@ -80,6 +84,9 @@ public:
 
 	void onLinphoneCoreStart (bool monitoringEnabled) override;
 	void onLinphoneCoreStop () override;
+
+	void startAudioForEchoTestOrCalibration () override;
+	void stopAudioForEchoTestOrCalibration () override;
 
 	//IosHelper specific
 	bool isReachable(SCNetworkReachabilityFlags flags);
@@ -102,6 +109,7 @@ private:
 	SCNetworkReachabilityFlags mCurrentFlags = 0;
 	bool mNetworkMonitoringEnabled = false;
 	static const string Framework;
+	IosAppDelegate *mAppDelegate;
 };
 
 static void sNetworkChangeCallback(CFNotificationCenterRef center, void *observer, CFStringRef name, const void *object, CFDictionaryRef userInfo);
@@ -114,12 +122,18 @@ IosPlatformHelpers::IosPlatformHelpers (std::shared_ptr<LinphonePrivate::Core> c
 	mCpuLockCount = 0;
 	mCpuLockTaskId = 0;
 	mNetworkReachable = 0; // wait until monitor to give a status;
+	mSharedCoreHelpers = createIosSharedCoreHelpers(core);
+
+	mAppDelegate = [[IosAppDelegate alloc] init];
+	[mAppDelegate setCore:core];
 
 	string cpimPath = getResourceDirPath(Framework, "cpim_grammar");
 	if (!cpimPath.empty())
 		belr::GrammarLoader::get().addPath(cpimPath);
 	else
 		ms_error("IosPlatformHelpers did not find cpim grammar resource directory...");
+
+	// mSharedCoreHelpers->setupSharedCore(core->getCCore()->config);
 
 	string identityPath = getResourceDirPath(Framework, "identity_grammar");
 	if (!identityPath.empty())
@@ -240,6 +254,10 @@ string IosPlatformHelpers::getResourcePath (const string &framework, const strin
 	return getResourceDirPath(framework, resource) + "/" + resource;
 }
 
+void *IosPlatformHelpers::getPathContext () {
+	return getSharedCoreHelpers()->getPathContext();
+}
+
 void IosPlatformHelpers::onLinphoneCoreStart(bool monitoringEnabled) {
 	mNetworkMonitoringEnabled = monitoringEnabled;
 	if (monitoringEnabled) {
@@ -251,8 +269,17 @@ void IosPlatformHelpers::onLinphoneCoreStop() {
 	if (mNetworkMonitoringEnabled) {
 		stopNetworkMonitoring();
 	}
+
+	getSharedCoreHelpers()->onLinphoneCoreStop();
 }
 
+void IosPlatformHelpers::startAudioForEchoTestOrCalibration () {
+
+}
+
+void IosPlatformHelpers::stopAudioForEchoTestOrCalibration () {
+	
+}
 
 void IosPlatformHelpers::onWifiOnlyEnabled(bool enabled) {
 	mWifiOnly = enabled;

@@ -84,7 +84,9 @@ static void chat_room_state_changed (LinphoneChatRoom *cr, LinphoneChatRoomState
 	const LinphoneAddress *addr = linphone_chat_room_get_conference_address(cr);
 
 	if (addr) {
-		ms_message("ChatRoom [%s] state changed: %d", linphone_address_as_string(addr), newState);
+		char *addr_str = linphone_address_as_string(addr);
+		ms_message("ChatRoom [%s] state changed: %d", addr_str, newState);
+		bctbx_free(addr_str);
 	}
 	switch (newState) {
 		case LinphoneChatRoomStateNone:
@@ -310,10 +312,16 @@ void _send_file(LinphoneChatRoom* cr, const char *sendFilepath, const char *send
 	_send_file_plus_text(cr, sendFilepath, sendFilepath2, NULL, use_buffer);
 }
 
-void _receive_file_plus_text(bctbx_list_t *coresList, LinphoneCoreManager *lcm, stats *receiverStats, const char *receive_filepath, const char *sendFilepath, const char *sendFilepath2, const char *text) {
+void _receive_file_plus_text(bctbx_list_t *coresList, LinphoneCoreManager *lcm, stats *receiverStats, const char *receive_filepath, const char *sendFilepath, const char *sendFilepath2, const char *text, bool_t use_buffer) {
 	if (BC_ASSERT_TRUE(wait_for_list(coresList, &lcm->stat.number_of_LinphoneMessageReceivedWithFile, receiverStats->number_of_LinphoneMessageReceivedWithFile + 1, 10000))) {
 		LinphoneChatMessageCbs *cbs;
 		LinphoneChatMessage *msg = lcm->stat.last_received_chat_message;
+		char *downloaded_file;
+		if (use_buffer) {
+			downloaded_file = bc_tester_file("receive_file.dump");
+		} else {
+			downloaded_file = ms_strdup(receive_filepath);
+		}
 
 		if (text) {
 			BC_ASSERT_TRUE(linphone_chat_message_has_text_content(msg));
@@ -325,33 +333,39 @@ void _receive_file_plus_text(bctbx_list_t *coresList, LinphoneCoreManager *lcm, 
 		linphone_chat_message_cbs_set_file_transfer_recv(cbs, file_transfer_received);
 		linphone_chat_message_cbs_set_file_transfer_progress_indication(cbs, file_transfer_progress_indication);
 
+		BC_ASSERT_PTR_NOT_NULL(linphone_chat_message_get_external_body_url(msg));
 		LinphoneContent *fileTransferContent = linphone_chat_message_get_file_transfer_information(msg);
 		BC_ASSERT_TRUE(linphone_content_is_file_transfer(fileTransferContent));
-		linphone_content_set_file_path(fileTransferContent, receive_filepath);
+		if (!use_buffer) {
+			linphone_content_set_file_path(fileTransferContent, downloaded_file);
+		}
 		linphone_chat_message_download_content(msg, fileTransferContent);
 		BC_ASSERT_EQUAL(linphone_chat_message_get_state(msg), LinphoneChatMessageStateFileTransferInProgress, int, "%d");
 
 		if (BC_ASSERT_TRUE(wait_for_list(coresList, &lcm->stat.number_of_LinphoneMessageFileTransferDone,receiverStats->number_of_LinphoneMessageFileTransferDone + 1, 20000))) {
-			compare_files(sendFilepath, receive_filepath);
+			compare_files(sendFilepath, downloaded_file);
 		}
 
 		if (sendFilepath2) {
-			remove(receive_filepath);
+			remove(downloaded_file);
 			LinphoneContent *fileTransferContent2 = linphone_chat_message_get_file_transfer_information(msg);
 			BC_ASSERT_TRUE(linphone_content_is_file_transfer(fileTransferContent2));
-			linphone_content_set_file_path(fileTransferContent2, receive_filepath);
+			if (!use_buffer) {
+				linphone_content_set_file_path(fileTransferContent2, downloaded_file);
+			}
 			linphone_chat_message_download_content(msg, fileTransferContent2);
 			BC_ASSERT_EQUAL(linphone_chat_message_get_state(msg), LinphoneChatMessageStateFileTransferInProgress, int, "%d");
 
 			if (BC_ASSERT_TRUE(wait_for_list(coresList, &lcm->stat.number_of_LinphoneMessageFileTransferDone,receiverStats->number_of_LinphoneMessageFileTransferDone + 2, 20000))) {
-				compare_files(sendFilepath2, receive_filepath);
+				compare_files(sendFilepath2, downloaded_file);
 			}
 		}
+		bc_free(downloaded_file);
 	}
 }
 
-void _receive_file(bctbx_list_t *coresList, LinphoneCoreManager *lcm, stats *receiverStats, const char *receive_filepath, const char *sendFilepath, const char *sendFilepath2) {
-	_receive_file_plus_text(coresList, lcm, receiverStats, receive_filepath, sendFilepath, sendFilepath2, NULL);
+void _receive_file(bctbx_list_t *coresList, LinphoneCoreManager *lcm, stats *receiverStats, const char *receive_filepath, const char *sendFilepath, const char *sendFilepath2, bool_t use_buffer) {
+	_receive_file_plus_text(coresList, lcm, receiverStats, receive_filepath, sendFilepath, sendFilepath2, NULL, use_buffer);
 }
 
 // Configure list of core manager for conference and add the listener
@@ -3112,11 +3126,11 @@ static void group_chat_room_send_file_with_or_without_text (bool_t with_text, bo
 
 	// Check that chat rooms have received the file
 	if (with_text) {
-		_receive_file_plus_text(coresList, pauline, &initialPaulineStats, receivePaulineFilepath, sendFilepath, sendFilepath2, text);
-		_receive_file_plus_text(coresList, chloe, &initialChloeStats, receiveChloeFilepath, sendFilepath, sendFilepath2, text);
+		_receive_file_plus_text(coresList, pauline, &initialPaulineStats, receivePaulineFilepath, sendFilepath, sendFilepath2, text, use_buffer);
+		_receive_file_plus_text(coresList, chloe, &initialChloeStats, receiveChloeFilepath, sendFilepath, sendFilepath2, text, use_buffer);
 	} else {
-		_receive_file(coresList, pauline, &initialPaulineStats, receivePaulineFilepath, sendFilepath, sendFilepath2);
-		_receive_file(coresList, chloe, &initialChloeStats, receiveChloeFilepath, sendFilepath, sendFilepath2);
+		_receive_file(coresList, pauline, &initialPaulineStats, receivePaulineFilepath, sendFilepath, sendFilepath2, use_buffer);
+		_receive_file(coresList, chloe, &initialChloeStats, receiveChloeFilepath, sendFilepath, sendFilepath2, use_buffer);
 	}
 
 	// Clean db from chat room
@@ -3693,6 +3707,7 @@ static void imdn_for_group_chat_room (void) {
 	LinphoneChatMessage *chloeMessage = _send_message(chloeCr, chloeTextMessage);
 	BC_ASSERT_TRUE(wait_for_list(coresList, &marie->stat.number_of_LinphoneMessageReceived, initialMarieStats.number_of_LinphoneMessageReceived + 1, 5000));
 	BC_ASSERT_TRUE(wait_for_list(coresList, &pauline->stat.number_of_LinphoneMessageReceived, initialPaulineStats.number_of_LinphoneMessageReceived + 1, 5000));
+	BC_ASSERT_TRUE(wait_for_list(coresList, &chloe->stat.number_of_LinphoneMessageSent, 1, 1000));
 	LinphoneChatMessage *marieLastMsg = marie->stat.last_received_chat_message;
 	if (!BC_ASSERT_PTR_NOT_NULL(marieLastMsg))
 		goto end;
@@ -3721,6 +3736,7 @@ static void imdn_for_group_chat_room (void) {
 	// Marie marks the message as read, check that the state is not yet displayed on Chloe's side
 	linphone_chat_room_mark_as_read(marieCr);
 	BC_ASSERT_FALSE(wait_for_list(coresList, &chloe->stat.number_of_LinphoneMessageDisplayed, initialChloeStats.number_of_LinphoneMessageDisplayed + 1, 3000));
+	BC_ASSERT_TRUE(wait_for_list(coresList, &marie->stat.number_of_LinphoneMessageSent, 0, 1000));
 	bctbx_list_t *participantsThatDisplayedChloeMessage = linphone_chat_message_get_participants_by_imdn_state(chloeMessage, LinphoneChatMessageStateDisplayed);
 	if (BC_ASSERT_PTR_NOT_NULL(participantsThatDisplayedChloeMessage)) {
 		BC_ASSERT_EQUAL((int)bctbx_list_size(participantsThatDisplayedChloeMessage), 1, int, "%d");
@@ -3737,6 +3753,7 @@ static void imdn_for_group_chat_room (void) {
 	// Pauline also marks the message as read, check that the state is now displayed on Chloe's side
 	linphone_chat_room_mark_as_read(paulineCr);
 	BC_ASSERT_TRUE(wait_for_list(coresList, &chloe->stat.number_of_LinphoneMessageDisplayed, initialChloeStats.number_of_LinphoneMessageDisplayed + 1, 5000));
+	BC_ASSERT_TRUE(wait_for_list(coresList, &pauline->stat.number_of_LinphoneMessageSent, 0, 1000));
 	participantsThatDisplayedChloeMessage = linphone_chat_message_get_participants_by_imdn_state(chloeMessage, LinphoneChatMessageStateDisplayed);
 	if (BC_ASSERT_PTR_NOT_NULL(participantsThatDisplayedChloeMessage)) {
 		BC_ASSERT_EQUAL((int)bctbx_list_size(participantsThatDisplayedChloeMessage), 2, int, "%d");

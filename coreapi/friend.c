@@ -359,6 +359,7 @@ static void remove_friend_from_list_map_if_already_in_it(LinphoneFriend *lf, con
 }
 
 LinphoneStatus linphone_friend_set_address(LinphoneFriend *lf, const LinphoneAddress *addr) {
+	if (!addr) return -1;
 	LinphoneAddress *fr = linphone_address_clone(addr);
 	char *address;
 	const LinphoneAddress *mAddr = linphone_friend_get_address(lf);
@@ -1176,7 +1177,7 @@ bool_t linphone_friend_create_vcard(LinphoneFriend *fr, const char *name) {
 	bool_t skip = FALSE;
 
 	if (!fr || !name) {
-		ms_error("Friend or name is null");
+		ms_error("Can't create vCard for friend [%p] with name [%s]", fr, name);
 		return FALSE;
 	}
 	if (!linphone_core_vcard_supported()) {
